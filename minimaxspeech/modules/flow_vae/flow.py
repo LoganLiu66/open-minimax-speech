@@ -211,9 +211,11 @@ class ResidualCouplingBlock(nn.Module):
 
     def forward(self, x, x_mask, g=None, reverse=False):
         if not reverse:
+            logdet_sum = torch.zeros(x.size(0), device=x.device, dtype=x.dtype)
             for flow in self.flows:
                 x, logdet = flow(x, x_mask, g=g, reverse=reverse)
-                return x, logdet
+                logdet_sum = logdet_sum + logdet
+            return x, logdet_sum
         else:
             for flow in reversed(self.flows):
                 x = flow(x, x_mask, g=g, reverse=reverse)

@@ -188,6 +188,8 @@ class FlowVAETrainer:
         self.optimizer_d.step()
 
         """Generator"""
+        for p in self.discriminator.parameters():
+            p.requires_grad = False
         loss_stft = self.stft_loss(audios, audios_hat)
         loss_mel = self.mel_loss(audios, audios_hat)
         loss_waveform = self.waveform_loss(audios, audios_hat)
@@ -201,6 +203,8 @@ class FlowVAETrainer:
         total_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.flow_vae.parameters(), self.config.trainer.grad_clip)
         self.optimizer_g.step()
+        for p in self.discriminator.parameters():
+            p.requires_grad = True
 
         return {
             'total_loss': total_loss.item(),
@@ -328,4 +332,3 @@ if __name__ == "__main__":
     trainer = FlowVAETrainer(config)
     trainer.train()
     trainer.destroy()
-
