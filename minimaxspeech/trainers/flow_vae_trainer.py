@@ -41,7 +41,8 @@ class FlowVAETrainer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.setup_distributed()
         setup_logger(os.path.join(self.config.trainer.output_dir, 'logs'))
-        self.writer = SummaryWriter(os.path.join(self.config.trainer.output_dir, 'tensorboard'))
+        if self.local_rank == 0:
+            self.writer = SummaryWriter(os.path.join(self.config.trainer.output_dir, 'tensorboard'))
 
         self.setup_model()
         self.load_checkpoint()
