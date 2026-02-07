@@ -1,0 +1,11 @@
+omegaconf
+tensorboard
+einops
+nvitop
+inflect
+tokenizers
+unidecode
+transformers
+diffusers
+git+https://github.com/descriptinc/audiotools
+torchinfo
