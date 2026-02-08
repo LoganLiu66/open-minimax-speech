@@ -51,9 +51,11 @@ def get_metrics(signal_path, recons_path, state):
                 f"mel-{k}": state.mel_loss(x, y),
                 f"stft-{k}": state.stft_loss(x, y),
                 f"waveform-{k}": state.waveform_loss(x, y),
-                f"sisdr-{k}": state.sisdr_loss(x, y),
+                f"sisdr-{k}": state.sisdr_loss(y, x),
                 f"visqol-audio-{k}": metrics.quality.visqol(x, y),
                 f"visqol-speech-{k}": metrics.quality.visqol(x, y, "speech"),
+                f"stoi-{k}": metrics.quality.stoi(x, y),
+                f"pesq-{k}": metrics.quality.pesq(x, y)
             }
         )
     output["path"] = signal.path_to_file

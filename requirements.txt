@@ -10,3 +10,4 @@ diffusers
 git+https://github.com/descriptinc/audiotools
 torchinfo
 argbind
+pesq
