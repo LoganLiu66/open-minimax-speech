@@ -41,7 +41,10 @@ def get_metrics(signal_path, recons_path, state):
         x = signal.clone().resample(sr)
         y = recons.clone().resample(sr)
 
-        y = AudioSignal(y.audio_data[..., :x.audio_data.size(-1)], sr)
+        min_len = min(x.audio_data.size(-1), y.audio_data.size(-1))
+        x = AudioSignal(x.audio_data[..., :min_len], sr)
+        y = AudioSignal(y.audio_data[..., :min_len], sr)
+
         k = "22k" if sr == 22050 else "44k"
         output.update(
             {

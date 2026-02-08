@@ -43,6 +43,10 @@ class FlowVAETrainer:
         setup_logger(os.path.join(self.config.trainer.output_dir, 'logs'))
         if self.local_rank == 0:
             self.writer = SummaryWriter(os.path.join(self.config.trainer.output_dir, 'tensorboard'))
+        
+        self.start_epoch = 0
+        self.global_step = 0
+        self.best_loss = float('inf')
 
         self.setup_model()
         self.load_checkpoint()
@@ -50,10 +54,6 @@ class FlowVAETrainer:
         self.setup_optimizer()
         self.setup_scheduler()
         self.setup_dataset()
-
-        self.start_epoch = 0
-        self.global_step = 0
-        self.best_loss = float('inf')
 
     def setup_distributed(self):
         # Setup distributed training
@@ -88,10 +88,17 @@ class FlowVAETrainer:
             logging.info(f"Loading checkpoint from {self.config.trainer.checkpoint}")
             checkpoint = torch.load(self.config.trainer.checkpoint, map_location='cpu')
             
-            self.flow_vae.load_state_dict(checkpoint['flow_vae'])
-            self.discriminator.load_state_dict(checkpoint['discriminator'])
-            self.start_epoch = checkpoint['epoch'] + 1
-            self.global_step = checkpoint['global_step']
+            if self.config.trainer.official_checkpoint:
+                self.flow_vae.load_state_dict(checkpoint['state_dict'], strict=False)
+                for p in self.flow_vae.encoder.parameters():
+                    p.requires_grad = False
+                for p in self.flow_vae.decoder.parameters():
+                    p.requires_grad = False
+            else:
+                self.flow_vae.load_state_dict(checkpoint['flow_vae'])
+                self.discriminator.load_state_dict(checkpoint['discriminator'])
+                self.start_epoch = checkpoint['epoch'] + 1
+                self.global_step = checkpoint['global_step']
             
             logging.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
 
