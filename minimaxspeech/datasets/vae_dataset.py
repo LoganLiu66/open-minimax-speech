@@ -13,7 +13,7 @@ class VAEDataset(Dataset):
     def __init__(self, data_file_list, sample_rate=22050, max_duration=15.0):
         self.sampling_rate = sample_rate
         self.max_duration = max_duration
-        self.down_sample_rate = 512
+        self.downsample_rate = 512
         self.max_samples = int(sample_rate * max_duration)
 
         self.metadata_list = self.load_file_list(data_file_list)
@@ -60,7 +60,7 @@ class VAEDataset(Dataset):
             start = np.random.randint(low=0, high=y.size(-1) - self.max_samples + 1)
             y = y[:, start : start + self.max_samples]
 
-        length = y.size(-1) // self.down_sample_rate * self.down_sample_rate
+        length = y.size(-1) // self.downsample_rate * self.downsample_rate
         y = y[:1, :length]
         
         item = {

@@ -1,0 +1,77 @@
+trainer:
+  # resume
+  resume: true
+  checkpoint: "checkpoints/xtts2/gpt.pth"
+
+  # optimization
+  learning_rate: 1e-4
+  min_lr: 1e-6
+  weight_decay: 0.01
+  betas: [0.9, 0.95]
+  grad_clip: 1.0
+  amp: true
+
+  # loss weights
+  text_loss_weight: 0.1
+  mel_loss_weight: 1.0
+
+  # loop
+  epochs: 50
+  log_interval: 100
+  val_interval: 2000
+  save_interval: 5000
+  output_dir: "output/gpt2"
+
+dataset:
+  train_file_list: "data/libritts/libritts_train.txt"
+  valid_file_list: "data/libritts/libritts_valid.txt"
+  tokenizer_file: "checkpoints/xtts2/vocab.json"
+  sample_rate: 22050
+
+  min_conditioning_duration: 3.0 # 3s
+  max_conditioning_duration: 6.0 # 6s
+  min_audio_duration: 0.5
+  max_audio_duration: 15.0
+  min_text_length: 1.0
+  max_text_length: 300
+
+  use_masking_gt_prompt_approach: true
+
+  num_workers: 16
+  batch_size: 16
+
+
+
+# GPT2
+# https://github.com/coqui-ai/TTS/blob/dev/recipes/ljspeech/xtts_v2/train_gpt_xtts.py#L82
+# https://github.com/coqui-ai/TTS/blob/dev/TTS/tts/models/xtts.py#L226
+model:
+  vq_vae:
+    checkpoint: "checkpoints/xtts2/dvae.pth"
+    mel_norm_file: "checkpoints/xtts2/mel_stats.pth"
+    model:
+      channels: 80
+      normalization: null
+      positional_dims: 1
+      num_tokens: 1024
+      codebook_dim: 512
+      hidden_dim: 512
+      num_resnet_blocks: 3
+      kernel_size: 3
+      num_layers: 2
+      use_transposed_convs: false
+  gpt:
+    layers: 30
+    model_dim: 1024
+    start_text_token: 261 # https://github.com/coqui-ai/TTS/tts/models/xtts.py#L222
+    stop_text_token: 0
+    heads: 16
+    max_text_tokens: 402
+    max_mel_tokens: 605
+    max_prompt_tokens: 70
+    number_text_tokens: 6681
+    num_audio_tokens: 1026
+    start_audio_token: 1024
+    stop_audio_token: 1025
+    use_perceiver_resampler: true
+    code_stride_len: 1024

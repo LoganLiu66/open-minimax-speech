@@ -5,9 +5,14 @@ nvitop
 inflect
 tokenizers
 unidecode
-transformers
+transformers==4.38.0
 diffusers
 git+https://github.com/descriptinc/audiotools
 torchinfo
 argbind
 pesq
+pypinyin
+WeTextProcessing
+hangul-romanize
+num2words
+spacy
