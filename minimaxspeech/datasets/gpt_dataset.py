@@ -156,11 +156,11 @@ class GPTDataset(Dataset):
 
         # conditioning
         conds = torch.stack(batch["cond"])
-        if batch["cond_lens"][0] is np.nan:
+        if isinstance(batch["cond_lens"][0], float) and np.isnan(batch["cond_lens"][0]):
             cond_lens = None
         else:
             cond_lens = torch.tensor(batch["cond_lens"], dtype=torch.long)
-        if batch["cond_idxs"][0] is np.nan:
+        if isinstance(batch["cond_idxs"][0], float) and np.isnan(batch["cond_idxs"][0]):
             cond_idxs = None
         else:
             cond_idxs = torch.tensor(batch["cond_idxs"], dtype=torch.long)

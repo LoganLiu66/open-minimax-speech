@@ -348,7 +348,7 @@ class GPT(nn.Module):
                         start = 0
                     else:
                         start = random.randint(0, lengths[i] - prompt_len)
-                prompt = prompt_codes[:, start : start + prompt_len]
+                    prompt[i] = prompt_codes[i, start : start + prompt_len]
 
         # add start and stop tokens
         prompt = F.pad(prompt, (1, 0), value=self.start_prompt_token)

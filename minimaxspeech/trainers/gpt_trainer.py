@@ -87,9 +87,8 @@ class GPT2Trainer:
         self.model = GPT(**self.config.model.gpt).to(self.device)
 
     def setup_optimizer(self):
-        params = self.model.parameters() if not isinstance(self.model, DDP) else self.model.module.parameters()
         self.optimizer = torch.optim.AdamW(
-            params,
+            self.model.parameters(),
             lr=self.config.trainer.learning_rate,
             betas=self.config.trainer.betas,
             weight_decay=self.config.trainer.weight_decay
@@ -361,21 +360,6 @@ class GPT2Trainer:
                     self.save_checkpoint(self.model, self.optimizer, self.global_step, epoch, self.config)
 
             self.scheduler.step()
-
-    def save_bad_batch(self, batch):
-        ref_wavs, ref_wav_lengths, text_tokens, text_lengths, wavs, wav_lengths, audio_files, ref_audio_files = batch
-        batch = {
-            'ref_wavs': ref_wavs,
-            'ref_wav_lengths': ref_wav_lengths,
-            'text_tokens': text_tokens,
-            'text_lengths': text_lengths,
-            'wavs': wavs,
-            'wav_lengths': wav_lengths,
-            'audio_files': audio_files,
-            'ref_audio_files': ref_audio_files,
-        }
-        torch.save(batch, os.path.join(self.config.trainer.output_dir, f'bad_batch.pth'))
-        logging.info(f"Saved bad batch to {os.path.join(self.config.trainer.output_dir, f'bad_batch.pth')}")
 
     def destroy(self):
         if self.writer is not None:
