@@ -481,7 +481,7 @@ if __name__ == "__main__":
     config = OmegaConf.load("./configs/flow_vae_config.yaml")
     model = DAC_FLOW_VAE(**config.model.flow_vae).to(device)
     
-    length = 3 * 44100
+    length = 512 * 40 + 511
     batch_size = 2
     audios = torch.randn(batch_size, 1, length).to(model.device)
     audio_lengths = torch.tensor([length] * batch_size).to(model.device)
@@ -491,3 +491,5 @@ if __name__ == "__main__":
 
     audio_hats, loss_kl = model(audios, audio_lengths)
     print(audios.shape, audio_hats.shape)
+    z = model.encode(audios)
+    print(z.shape) # z.size(-1) = audios.shape[-1] // 512

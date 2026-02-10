@@ -429,3 +429,27 @@ class TorchMelSpectrogram(nn.Module):
             self.mel_norms = self.mel_norms.to(mel.device)
             mel = mel / self.mel_norms.unsqueeze(0).unsqueeze(-1)
         return mel
+
+
+if __name__ == "__main__":
+    from omegaconf import OmegaConf
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config = OmegaConf.load("./configs/vq_vae_config_libritts.yaml")
+    model = DiscreteVAE(**config.model).to(device)
+
+    waveforms = torch.randn(2, 1, 1024 * 65).to(device)
+    torch_mel_spectrogram_vq_vae = TorchMelSpectrogram(
+        mel_norm_file=config.trainer.mel_norm_file,
+        sampling_rate=config.dataset.sample_rate
+    ).to(device)
+    mel_spectrograms = torch_mel_spectrogram_vq_vae(waveforms)
+    codes = model.get_codebook_indices(mel_spectrograms)
+    print(codes.shape) # codes.size(-1) = math.ceil((waveforms.size(-1) + 1) // 1024)
+    
+    remainder = mel_spectrograms.shape[-1] % 4
+    if remainder:
+        # if the mel spectrogram is not divisible by 4 then input.shape != output.shape 
+        mel_spectrograms = mel_spectrograms[:, :, :-remainder]
+    
+    from torchinfo import summary
+    summary(model, input_data=(mel_spectrograms), depth=5)

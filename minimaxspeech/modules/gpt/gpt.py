@@ -640,3 +640,6 @@ if __name__ == "__main__":
 
     loss_text, loss_mel, _ = model(text_inputs, text_lengths, audio_codes, wav_lengths, cond_mels, cond_idxs, cond_lens)
     print(loss_text, loss_mel)
+
+    spk_emb = model.get_style_emb(cond_mels)
+    print(spk_emb.shape)

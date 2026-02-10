@@ -25,8 +25,8 @@ from minimaxspeech.modules.flow_vae.flow_vae import DAC_FLOW_VAE
 
 
 @torch.no_grad()
-def process(signal, model):
-    signal = signal.resample(44100).to(model.device)
+def process(signal, model, sr):
+    signal = signal.resample(sr).to(model.device)
     z = model.encode(signal.audio_data)
 
     # Decode audio signal
@@ -48,8 +48,8 @@ def get_samples(
     tracker = Tracker(log_file=f"{output}/eval.txt")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = OmegaConf.load(config)
+    sr = config.model.flow_vae.sample_rate
     model = DAC_FLOW_VAE(**config.model.flow_vae).to(device)
-    print(ckpt_file)
     model.load_state_dict(torch.load(ckpt_file)['flow_vae'])
     model.eval()
 
@@ -64,7 +64,7 @@ def get_samples(
     with tracker.live:
         for i in range(len(audio_files)):
             signal = AudioSignal(audio_files[i])
-            recons = process(signal, model)
+            recons = process(signal, model, sr)
             recons.write(output / audio_files[i].name)
 
         tracker.done("test", f"N={len(audio_files)}")
