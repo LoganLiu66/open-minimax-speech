@@ -41,15 +41,15 @@ class FlowMatchingTrainer:
         setup_logger(os.path.join(self.config.trainer.output_dir, 'logs'))
         self.writer = SummaryWriter(os.path.join(self.config.trainer.output_dir, 'tensorboard'))
 
-        self.setup_model()
-        self.load_checkpoint()
-        self.setup_optimizer()
-        self.setup_scheduler()
-        self.setup_dataset()
-
         self.start_epoch = 0
         self.global_step = 0
         self.best_loss = float('inf')
+
+        self.setup_model()
+        self.setup_optimizer()
+        self.setup_scheduler()
+        self.load_checkpoint()
+        self.setup_dataset()
 
     def setup_distributed(self):
         # Setup distributed training
@@ -80,6 +80,7 @@ class FlowMatchingTrainer:
         logging.info(f"GPT model initialized")
 
         self.flow_vae = DAC_FLOW_VAE(**self.config.model.flow_vae).to(self.device)
+        self.downsample_rate = self.flow_vae.downsample_rate  # store before potential DDP wrapping
         logging.info(f"FlowVAE model initialized")
 
     def load_checkpoint(self):
@@ -106,16 +107,16 @@ class FlowMatchingTrainer:
             checkpoint = torch.load(checkpoint_path, map_location='cpu')
             
             self.model.load_state_dict(checkpoint['flow_matching'])
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            self.scheduler.load_state_dict(checkpoint['scheduler'])
             self.start_epoch = checkpoint['epoch'] + 1
             self.global_step = checkpoint['global_step']
             logging.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
 
-        # Wrap models with DDP if distributed
+        # Wrap only the trainable model with DDP if distributed
+        # Frozen models (vq_vae, gpt, flow_vae) don't need DDP
         if self.distributed:
             self.model = DDP(self.model, device_ids=[self.local_rank])
-            self.vq_vae = DDP(self.vq_vae, device_ids=[self.local_rank])
-            self.gpt = DDP(self.gpt, device_ids=[self.local_rank])
-            self.flow_vae = DDP(self.flow_vae, device_ids=[self.local_rank])
 
     def setup_optimizer(self):
         self.optimizer = torch.optim.AdamW(
@@ -198,14 +199,14 @@ class FlowMatchingTrainer:
         with torch.no_grad():
             mels = self.mel_extractor(wavs)
             token = self.vq_vae.get_codebook_indices(mels)
-            token_len = torch.ceil((wav_lengths + 1) / 1024)
+            token_len = torch.ceil((wav_lengths + 1) / 1024).long()
 
             cond_mels = self.mel_extractor(conds)
             embedding = self.gpt.get_style_emb(cond_mels)
             embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
             feat = self.flow_vae.encode(wavs).transpose(1, 2) # (b, d, t) -> (b, t, d)
-            feat_len = wav_lengths // self.flow_vae.downsample_rate
+            feat_len = wav_lengths // self.downsample_rate
         
         # Forward pass: compute flow matching loss
         loss = self.model(
@@ -289,14 +290,14 @@ class FlowMatchingTrainer:
                 with torch.no_grad():
                     mels = self.mel_extractor(wavs)
                     token = self.vq_vae.get_codebook_indices(mels)
-                    token_len = torch.ceil((wav_lengths + 1) / 1024)
+                    token_len = torch.ceil((wav_lengths + 1) / 1024).long()
 
                     cond_mels = self.mel_extractor(conds)
                     embedding = self.gpt.get_style_emb(cond_mels)
                     embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
                     feat = self.flow_vae.encode(wavs).transpose(1, 2) # (b, d, t) -> (b, t, d)
-                    feat_len = wav_lengths // self.flow_vae.downsample_rate
+                    feat_len = wav_lengths // self.downsample_rate
                 
                 # Forward pass: compute flow matching loss
                 loss = self.model(
