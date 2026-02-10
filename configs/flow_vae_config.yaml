@@ -33,7 +33,7 @@ loss:
 dataset:
   train_file_list: "data/libritts/libritts_train.txt"
   valid_file_list: "data/libritts/libritts_valid.txt"
-  sample_rate: 44100
+  sample_rate: 22050
   max_duration: 0.38
   num_workers: 16
   batch_size: 24
@@ -45,7 +45,7 @@ model:
     latent_dim: 256
     decoder_dim: 1536
     decoder_rates: [8, 8, 4, 2]
-    sample_rate: 44100
+    sample_rate: 22050
 
     n_flows: 4
     flow_dim: 256
@@ -56,7 +56,7 @@ model:
     flow_mean_only: true
 
   discriminator:
-    sample_rate: 44100
+    sample_rate: 22050
     rates: []
     periods: [2, 3, 5, 7, 11]
     fft_sizes: [2048, 1024, 512]
