@@ -104,6 +104,7 @@ class GPTDataset(Dataset):
         return {
             "waveform": wav,  # (1, Tvar)
             "wav_length": wav_len,
+            "text": text,
             "text_tokens": text_tokens,
             "text_length": text_len,
             "cond": cond,
@@ -194,6 +195,7 @@ class GPTDataset(Dataset):
         return {
             "waveform": wavs,
             "wav_lengths": wav_lengths,
+            "text": batch["text"],
             "text_tokens": text_tokens,
             "text_lengths": text_lengths,
             "cond": conds,
