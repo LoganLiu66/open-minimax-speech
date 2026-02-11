@@ -444,7 +444,7 @@ if __name__ == "__main__":
     ).to(device)
     mel_spectrograms = torch_mel_spectrogram_vq_vae(waveforms)
     codes = model.get_codebook_indices(mel_spectrograms)
-    print(codes.shape) # codes.size(-1) = math.ceil((waveforms.size(-1) + 1) // 1024)
+    print(codes.shape) # codes.size(-1) = math.ceil((waveforms.size(-1) + 1) / 1024)
     
     remainder = mel_spectrograms.shape[-1] % 4
     if remainder:

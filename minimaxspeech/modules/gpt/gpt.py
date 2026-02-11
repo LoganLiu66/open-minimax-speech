@@ -499,14 +499,14 @@ class GPT(nn.Module):
                 attn_mask_mel[idx, l + 1 :] = 0.0
 
         # Compute text embeddings + positional embeddings
-        text_emb = self.text_embedding(text_inputs) + self.text_pos_embedding(text_inputs)
+        text_emb = self.text_embedding(text_inputs) + self.text_pos_embedding(text_inputs) # (b, t, d)
 
         # Compute mel embeddings + positional embeddings
-        mel_emb = self.mel_embedding(audio_codes) + self.mel_pos_embedding(audio_codes)
+        mel_emb = self.mel_embedding(audio_codes) + self.mel_pos_embedding(audio_codes) # (b, t, d)
 
         # Compute speech conditioning input
         if cond_latents is None:
-            # cond_mels: (b, 80, T), cond_latents: (b, 32, 1024)
+            # cond_mels: (b, 80, T), cond_latents: (b, 32, d)
             cond_latents = self.get_style_emb(cond_mels).transpose(1, 2)
 
         # Get logits

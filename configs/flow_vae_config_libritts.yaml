@@ -1,7 +1,6 @@
 trainer:
-  resume: true
-  official_checkpoint: true
-  checkpoint: "checkpoints/dac/weights_44khz_8kbps_0.0.1.pth"
+  resume: false
+  checkpoint: null
   min_lr: 1e-6
   learning_rate: 1e-4
   weight_decay: 0.0
@@ -10,7 +9,7 @@ trainer:
   log_interval: 100
   val_interval: 1000
   save_interval: 5000
-  output_dir: "output/flow_vae_ft"
+  output_dir: "output/flow_vae_22050_4GPUs"
 
 loss:
   stft_loss:
@@ -32,9 +31,9 @@ loss:
     kl_loss: 0.01
 
 dataset:
-  train_file_list: "data/libritts/libritts_train.txt"
-  valid_file_list: "data/libritts/libritts_valid.txt"
-  sample_rate: 44100
+  train_file_list: "data/libritts/libritts_train_bk.txt"
+  valid_file_list: "data/libritts/libritts_valid_bk.txt"
+  sample_rate: 22050
   max_duration: 0.38
   num_workers: 16
   batch_size: 24
@@ -43,21 +42,21 @@ model:
   flow_vae:
     encoder_dim: 64
     encoder_rates: [2, 4, 8, 8]
-    latent_dim: 1024
+    latent_dim: 256
     decoder_dim: 1536
     decoder_rates: [8, 8, 4, 2]
-    sample_rate: 44100
+    sample_rate: 22050
 
     n_flows: 4
-    flow_dim: 1024
-    flow_hidden_dim: 1024
+    flow_dim: 256
+    flow_hidden_dim: 256
     flow_kernel_size: 5
     flow_dilation_rate: 1
     flow_layers: 4
     flow_mean_only: true
 
   discriminator:
-    sample_rate: 44100
+    sample_rate: 22050
     rates: []
     periods: [2, 3, 5, 7, 11]
     fft_sizes: [2048, 1024, 512]

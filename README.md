@@ -44,12 +44,12 @@ python minimaxspeech/trainers/vq_vae_trainer.py \
 ```
 # Single GPU
 python minimaxspeech/trainers/flow_vae_trainer.py \
-    --config configs/flow_vae_config.yaml
+    --config configs/flow_vae_config_libritts.yaml
 
 # Multi-GPU with DDP
 export CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7'
 torchrun --nproc_per_node=8 minimaxspeech/trainers/flow_vae_trainer.py \
-    --config configs/flow_vae_config.yaml
+    --config configs/flow_vae_config_libritts.yaml
 ```
 
 ##### Finetune

@@ -69,7 +69,7 @@ class VQVAETrainer:
             mel_norm_file=self.config.trainer.mel_norm_file,
             sampling_rate=self.config.dataset.sample_rate
         ).to(self.device)
-        self.model = DiscreteVAE(**self.config.model).to(self.device)
+        self.model = DiscreteVAE(**self.config.model.vq_vae).to(self.device)
         logging.info(f"Model initialized and ready to train")
 
     def load_checkpoint(self):

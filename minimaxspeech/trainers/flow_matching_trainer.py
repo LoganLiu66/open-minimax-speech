@@ -5,12 +5,12 @@ Trainer for the ConditionalCFM (Conditional Flow Matching) model.
 
 Usage:
     python minimaxspeech/trainers/flow_matching_trainer.py \
-        --config configs/flow_matching_config.yaml
+        --config configs/flow_matching_config_libritts.yaml
 
     # Multi-GPU with DDP
     export CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7'
     torchrun --nproc_per_node=8 minimaxspeech/trainers/flow_matching_trainer.py \
-        --config configs/flow_matching_config.yaml
+        --config configs/flow_matching_config_libritts.yaml
 """
 import argparse
 import logging
@@ -73,21 +73,24 @@ class FlowMatchingTrainer:
         self.model = MaskedDiffWithXvec(**self.config.model.flow_matching).to(self.device)
         logging.info(f"ConditionalCFM model initialized and ready to train")
 
-        self.vq_vae = DiscreteVAE(**self.config.model.vq_vae).to(self.device)
+        vq_vae_config = OmegaConf.load(self.config.model.vq_vae.config)
+        self.vq_vae = DiscreteVAE(**vq_vae_config.model.vq_vae).to(self.device)
         logging.info(f"VQVAE model initialized")
 
-        self.gpt = GPT(**self.config.model.gpt).to(self.device)
+        gpt_config = OmegaConf.load(self.config.model.gpt.config)
+        self.gpt = GPT(**gpt_config.model.gpt).to(self.device)
         logging.info(f"GPT model initialized")
 
-        self.flow_vae = DAC_FLOW_VAE(**self.config.model.flow_vae).to(self.device)
+        flow_vae_config = OmegaConf.load(self.config.model.flow_vae.config)
+        self.flow_vae = DAC_FLOW_VAE(**flow_vae_config.model.flow_vae).to(self.device)
         self.downsample_rate = self.flow_vae.downsample_rate  # store before potential DDP wrapping
         logging.info(f"FlowVAE model initialized")
 
     def load_checkpoint(self):
-        self.vq_vae.load_state_dict(torch.load(self.config.trainer.vq_vae_checkpoint, map_location="cpu"))
+        self.vq_vae.load_state_dict(torch.load(self.config.model.vq_vae.checkpoint, map_location="cpu"))
         self.vq_vae.eval()
 
-        checkpoint = torch.load(self.config.trainer.gpt_checkpoint, map_location="cpu")
+        checkpoint = torch.load(self.config.model.gpt.checkpoint, map_location="cpu")
         if 'gpt' in checkpoint: # self-host checkpoint
             self.gpt.load_state_dict(checkpoint['gpt'])
         else: # from xtts2 checkpoint
@@ -96,7 +99,7 @@ class FlowMatchingTrainer:
         self.gpt.eval()
 
         self.flow_vae.load_state_dict(
-            torch.load(self.config.trainer.flow_vae_checkpoint, map_location="cpu")['flow_vae']
+            torch.load(self.config.model.flow_vae.checkpoint, map_location="cpu")['flow_vae']
         )
         self.flow_vae.eval()
 

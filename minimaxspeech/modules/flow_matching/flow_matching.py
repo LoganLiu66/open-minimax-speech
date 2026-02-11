@@ -152,9 +152,10 @@ class ConditionalCFM(BASECFM):
         in_channels = in_channels + (spk_emb_dim if n_spks > 0 else 0)
         # Just change the architecture of the estimator here
         self.estimator = ConditionalDecoder(**estimator)
+        self.out_channels = self.estimator.out_channels
         
     @torch.inference_mode()
-    def forward(self, mu, mask, n_timesteps, temperature=1.0, spks=None, cond=None, prompt_len=0, cache=torch.zeros(1, 80, 0, 2)):
+    def forward(self, mu, mask, n_timesteps, temperature=1.0, spks=None, cond=None, prompt_len=0, cache=torch.zeros(1, 256, 0, 2)):
         """Forward diffusion
 
         Args:
@@ -212,12 +213,12 @@ class ConditionalCFM(BASECFM):
 
         # Do not use concat, it may cause memory format changed and trt infer with wrong results!
         # NOTE when flow run in amp mode, x.dtype is float32, which cause nan in trt fp16 inference, so set dtype=spks.dtype
-        x_in = torch.zeros([2, 80, x.size(2)], device=x.device, dtype=spks.dtype)
+        x_in = torch.zeros([2, self.out_channels, x.size(2)], device=x.device, dtype=spks.dtype)
         mask_in = torch.zeros([2, 1, x.size(2)], device=x.device, dtype=spks.dtype)
-        mu_in = torch.zeros([2, 80, x.size(2)], device=x.device, dtype=spks.dtype)
+        mu_in = torch.zeros([2, self.out_channels, x.size(2)], device=x.device, dtype=spks.dtype)
         t_in = torch.zeros([2], device=x.device, dtype=spks.dtype)
-        spks_in = torch.zeros([2, 80], device=x.device, dtype=spks.dtype)
-        cond_in = torch.zeros([2, 80, x.size(2)], device=x.device, dtype=spks.dtype)
+        spks_in = torch.zeros([2, self.out_channels], device=x.device, dtype=spks.dtype)
+        cond_in = torch.zeros([2, self.out_channels, x.size(2)], device=x.device, dtype=spks.dtype)
         for step in range(1, len(t_span)):
             # Classifier-Free Guidance inference introduced in VoiceBox
             x_in[:] = x
@@ -251,12 +252,12 @@ class ConditionalCFM(BASECFM):
             # NOTE need to synchronize when switching stream
             torch.cuda.current_stream().synchronize()
             with stream:
-                estimator.set_input_shape('x', (2, 80, x.size(2)))
+                estimator.set_input_shape('x', (2, self.out_channels, x.size(2)))
                 estimator.set_input_shape('mask', (2, 1, x.size(2)))
-                estimator.set_input_shape('mu', (2, 80, x.size(2)))
+                estimator.set_input_shape('mu', (2, self.out_channels, x.size(2)))
                 estimator.set_input_shape('t', (2,))
-                estimator.set_input_shape('spks', (2, 80))
-                estimator.set_input_shape('cond', (2, 80, x.size(2)))
+                estimator.set_input_shape('spks', (2, self.out_channels))
+                estimator.set_input_shape('cond', (2, self.out_channels, x.size(2)))
                 data_ptrs = [x.contiguous().data_ptr(),
                              mask.contiguous().data_ptr(),
                              mu.contiguous().data_ptr(),

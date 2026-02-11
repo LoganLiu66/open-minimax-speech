@@ -47,19 +47,9 @@ dataset:
 # https://github.com/coqui-ai/TTS/blob/dev/TTS/tts/models/xtts.py#L226
 model:
   vq_vae:
+    config: "configs/vq_vae_config_libritts_ft.yaml"
     checkpoint: "checkpoints/xtts2/dvae.pth"
     mel_norm_file: "checkpoints/xtts2/mel_stats.pth"
-    model:
-      channels: 80
-      normalization: null
-      positional_dims: 1
-      num_tokens: 1024
-      codebook_dim: 512
-      hidden_dim: 512
-      num_resnet_blocks: 3
-      kernel_size: 3
-      num_layers: 2
-      use_transposed_convs: false
   gpt:
     layers: 30
     model_dim: 1024

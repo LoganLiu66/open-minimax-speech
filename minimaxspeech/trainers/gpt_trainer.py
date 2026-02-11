@@ -81,7 +81,8 @@ class GPT2Trainer:
         ).to(self.device)
 
         # VQVAE tokenizer (frozen)
-        self.vq_vae = DiscreteVAE(**self.config.model.vq_vae.model).to(self.device)
+        vq_vae_config = OmegaConf.load(self.config.model.vq_vae.config)
+        self.vq_vae = DiscreteVAE(**vq_vae_config.model.vq_vae).to(self.device)
         
         # GPT https://github.com/coqui-ai/TTS/blob/dev/TTS/tts/layers/xtts/trainer/gpt_trainer.py#L91
         self.model = GPT(**self.config.model.gpt).to(self.device)
