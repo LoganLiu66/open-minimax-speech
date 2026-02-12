@@ -2,6 +2,7 @@ frontend:
   vocab_file: "checkpoints/xtts2/vocab.json"
 
 model:
+  sample_rate: 22050
   vq_vae:
     config: "configs/vq_vae_config_libritts_ft.yaml"
     checkpoint: "checkpoints/xtts2/dvae.pth"
@@ -15,4 +16,4 @@ model:
     checkpoint: "output/flow_vae_22050_4GPUs/checkpoint_235000.pth"
   flow_matching:
     config: "configs/flow_matching_config_libritts.yaml"
-    checkpoint: "output/flow_matching_4GPUs/checkpoint_016000.pth"
+    checkpoint: "output/flow_matching_4GPUs/checkpoint_070000.pth"

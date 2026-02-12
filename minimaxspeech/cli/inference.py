@@ -21,8 +21,8 @@ class MiniMaxSpeech:
         if sr != self.sampling_rate:
             y = torchaudio.functional.resample(y, orig_freq=sr, new_freq=self.sampling_rate)
         text_tokens = self.frontend.encode(text, lang=lang)
-        y = y.unsqueeze(0).to(self.device)
-        text_tokens = torch.tensor(text_tokens).unsqueeze(0).to(self.device)
+        y = y.to(self.device)
+        text_tokens = torch.tensor(text_tokens).to(self.device)
         
         audio = self.model.generate(y, text_tokens)
         return audio
@@ -32,6 +32,6 @@ if __name__ == "__main__":
     setup_logger("output/logs")
     config = OmegaConf.load("configs/minimaxspeech_config.yaml")
     minimaxspeech = MiniMaxSpeech(config)
-    audio = minimaxspeech.generate("data/prompt.wav", "Hello, how are you?", lang="en")
+    audio = minimaxspeech.generate("data/LJ001-0001.wav", "Hello world!", lang="en")
     audio = audio[0].cpu()
     torchaudio.save("output/audio.wav", audio, 22050)

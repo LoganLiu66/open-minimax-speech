@@ -404,6 +404,18 @@ class MaskedDiffWithXvec(torch.nn.Module):
         embedding,
         flow_cache
     ):
+        """Flow Matching inference
+
+        Args:
+            token (torch.Tensor): gpt output tokens(batch_size, t)
+            token_len: sequence length of token
+            prompt_token (torch.Tensor): (batch_size, t')
+            prompt_token_len (torch.Tensor): (batch_size,)
+            prompt_feat (torch.Tensor): (batch_size, t', output_size)
+            prompt_feat_len (torch.Tensor): (batch_size,)
+            embedding (torch.Tensor): (batch_size, 1024)
+            flow_cache (torch.Tensor): (batch_size, output_size, 0, 2)
+        """
         assert token.shape[0] == 1
         # xvec projection
         embedding = F.normalize(embedding, dim=1)
@@ -418,7 +430,7 @@ class MaskedDiffWithXvec(torch.nn.Module):
         # text encode
         h, h_lengths = self.encoder(token, token_len)
         h = self.encoder_proj(h)
-        mel_len1, mel_len2 = prompt_feat.shape[1], int(token_len2 / self.input_frame_rate * 22050 / 256)
+        mel_len1, mel_len2 = prompt_feat.shape[1], token_len2 * 2
         h, h_lengths = self.length_regulator.inference(h[:, :token_len1], h[:, token_len1:], mel_len1, mel_len2, self.input_frame_rate)
 
         # get conditions

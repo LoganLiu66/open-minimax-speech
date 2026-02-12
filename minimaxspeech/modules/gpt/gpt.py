@@ -6,7 +6,6 @@ Reference:
 - https://github.com/neonbjb/tortoise-tts/blob/main/tortoise/models/autoregressive.py
 """
 import functools
-import math
 import random
 
 import torch
