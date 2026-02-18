@@ -729,7 +729,7 @@ class CausalHiFTGenerator(HiFTGenerator):
 
 def test_reconstruction():
     import torchaudio
-    from minimaxspeech.utils.audio_utils.matcha import mel_spectrogram
+    from minimaxspeech.utils.audio_utils.matcha_mel import mel_spectrogram
 
     ckpt_path = 'checkpoints/cosyvoice/hift.pt'
     hift_state_dict = {k.replace('generator.', ''): v for k, v in torch.load(ckpt_path, map_location=device, weights_only=True).items()}
@@ -745,7 +745,7 @@ def test_mel():
     import torchaudio
     import matplotlib.pylab as plt
     from minimaxspeech.modules.vq_vae.dvae import TorchMelSpectrogram
-    from minimaxspeech.utils.audio_utils.matcha import mel_spectrogram
+    from minimaxspeech.utils.audio_utils.matcha_mel import mel_spectrogram
 
     # mel_spectrogram = TorchMelSpectrogram(sampling_rate=22050, mel_norm_file='checkpoints/xtts2/mel_stats.pth')
     waveform, sr = torchaudio.load('data/LJ001-0001.wav')

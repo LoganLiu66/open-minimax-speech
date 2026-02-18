@@ -1,5 +1,6 @@
 import logging
 
+import matplotlib.pylab as plt
 import torch
 import torchaudio
 import torch.nn.functional as F
@@ -9,8 +10,9 @@ from minimaxspeech.modules.common.utils import wav_to_mel_cloning
 from minimaxspeech.modules.flow_matching.flow_matching import MaskedDiffWithXvec
 from minimaxspeech.modules.flow_vae.flow_vae import DAC_FLOW_VAE
 from minimaxspeech.modules.gpt.gpt import GPT
+from minimaxspeech.modules.hifigan.generator import HiFTGenerator
 from minimaxspeech.modules.vq_vae.dvae import DiscreteVAE, TorchMelSpectrogram
-
+from minimaxspeech.utils.audio_utils.matcha_mel import mel_spectrogram
 
 class MiniMaxSpeechModel:
     def __init__(self, config: dict):
@@ -42,11 +44,27 @@ class MiniMaxSpeechModel:
         logging.info(f"FlowVAE model loaded")
         logging.info(f"Model loaded successfully")
 
+        ckpt_path = self.config.model.hift.checkpoint
+        hift_state_dict = {k.replace('generator.', ''): v for k, v in torch.load(ckpt_path, map_location="cpu", weights_only=True).items()}
+        self.hift.load_state_dict(hift_state_dict, strict=True)
+        
     def setup_model(self):
         self.torch_mel_spectrogram_vq_vae = TorchMelSpectrogram(
             mel_norm_file=self.config.model.vq_vae.mel_norm_file,
             sampling_rate=self.config.model.vq_vae.sample_rate
         ).to(self.device)
+
+        self.torch_mel_spectrogram_style_encoder = TorchMelSpectrogram(
+            filter_length=2048,
+            hop_length=256,
+            win_length=1024,
+            normalize=False,
+            sampling_rate=self.config.model.vq_vae.sample_rate,
+            mel_fmin=0,
+            mel_fmax=8000,
+            n_mel_channels=80,
+            mel_norm_file=self.config.model.vq_vae.mel_norm_file,
+        )
 
         vq_vae_config = OmegaConf.load(self.config.model.vq_vae.config)
         self.vq_vae = DiscreteVAE(**vq_vae_config.model.vq_vae).to(self.device)
@@ -64,6 +82,9 @@ class MiniMaxSpeechModel:
         flow_vae_config = OmegaConf.load(self.config.model.flow_vae.config)
         self.flow_vae = DAC_FLOW_VAE(**flow_vae_config.model.flow_vae).to(self.device)
         self.flow_vae.eval()
+
+        hift_config = OmegaConf.load(self.config.model.hift.config)
+        self.hift = HiFTGenerator(**hift_config.model.hift).to(self.device)
 
     @torch.inference_mode()
     def get_gpt_cond_latents(self, audio, sr, length: int = 30, chunk_length: int = 4):
@@ -156,19 +177,24 @@ class MiniMaxSpeechModel:
                 cond_latents=gpt_cond_latent,
                 text_inputs=text_tokens.unsqueeze(0),
                 **hf_generate_kwargs
-            )
+            )[:,:-1] # remove the last token
             logging.info(f"audio_tokens.shape: {audio_tokens.shape}, audio_tokens: {audio_tokens}")
 
             """ Flow matching inference """
             prompt_audio = prompt_audio.unsqueeze(0)
-            prompt_feat = self.torch_mel_spectrogram_vq_vae(prompt_audio[:, :, :22050 * 2 // 1024 * 1024 - 1])
+            prompt_feat = self.torch_mel_spectrogram_vq_vae(prompt_audio[:, :, :int(22050 * 1 // 1024 * 1024 - 1)])
+
+            # tmp_feat = self.torch_mel_spectrogram_vq_vae(prompt_audio)
+            # tmp_token = self.vq_vae.get_codebook_indices(tmp_feat)
+
             prompt_token = self.vq_vae.get_codebook_indices(prompt_feat)
             prompt_token_len = torch.tensor([prompt_token.shape[1]]).to(self.device)
 
-            prompt_z = self.flow_vae.encode(prompt_audio[:, :, :22050 * 2 // 1024 * 1024]).transpose(1, 2) # (1, t, d)
+            # prompt_z = self.flow_vae.encode(prompt_audio[:, :, :int(22050 * 1 // 1024 * 1024)]).transpose(1, 2) # (1, t, d)
+            prompt_z = mel_spectrogram(prompt_audio.squeeze(0)[:, :int(22050 * 1 // 1024 * 1024)]).transpose(1, 2) # (1, t, d)
             prompt_z_len = torch.tensor([prompt_z.shape[1]]).to(self.device)
 
-            cond_mels = self.torch_mel_spectrogram_vq_vae(prompt_audio[:, :, :22050*6])
+            cond_mels = self.torch_mel_spectrogram_style_encoder(prompt_audio[:, :, :22050*6])
             embedding = self.gpt.get_style_emb(cond_mels)
             embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
@@ -185,6 +211,20 @@ class MiniMaxSpeechModel:
                 flow_cache=flow_cache
             )
 
-            """ FlowVAE inference """
-            audio = self.flow_vae.decode(latent)
-            return audio
+            # latent, flow_cache = self.flow_matching.inference_without_prompt(
+            #     token=audio_tokens,
+            #     token_len=torch.tensor([audio_tokens.shape[1]]).to(self.device),
+            #     embedding=embedding,
+            #     flow_cache=flow_cache
+            # )
+
+            fig, ax = plt.subplots(figsize=(10, 2))
+            im = ax.imshow(latent[0].cpu(), aspect="auto", origin="lower", interpolation="none")
+            plt.colorbar(im, ax=ax)
+            plt.savefig('data/LJ001-0001-infer-matcha.png')
+
+            pred_gt, _ = self.hift.inference(latent)
+
+            # """ FlowVAE inference """
+            # audio = self.flow_vae.decode(latent)
+            return pred_gt

@@ -11,9 +11,12 @@ model:
   gpt:
     config: "configs/gpt_config_libritts_ft.yaml"
     checkpoint: "checkpoints/xtts2/gpt.pth"
+  flow_matching:
+    config: "configs/flow_matching_config_libritts.yaml"
+    checkpoint: "output/flow_matching_4GPUs_matcha_feat/checkpoint_100000.pth"
   flow_vae:
     config: "configs/flow_vae_config_libritts.yaml"
     checkpoint: "output/flow_vae_22050_4GPUs/checkpoint_235000.pth"
-  flow_matching:
-    config: "configs/flow_matching_config_libritts.yaml"
-    checkpoint: "output/flow_matching_4GPUs/checkpoint_070000.pth"
+  hift:
+    config: "configs/hifigan_config.yaml"
+    checkpoint: "checkpoints/cosyvoice/hift.pt"

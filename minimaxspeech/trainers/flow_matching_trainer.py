@@ -30,6 +30,7 @@ from minimaxspeech.modules.flow_matching.flow_matching import MaskedDiffWithXvec
 from minimaxspeech.modules.flow_vae.flow_vae import DAC_FLOW_VAE
 from minimaxspeech.modules.gpt.gpt import GPT
 from minimaxspeech.modules.vq_vae.dvae import DiscreteVAE, TorchMelSpectrogram
+from minimaxspeech.utils.audio_utils.matcha_mel import mel_spectrogram
 from minimaxspeech.utils.commons.logger import setup_logger
 
 
@@ -39,7 +40,10 @@ class FlowMatchingTrainer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.setup_distributed()
         setup_logger(os.path.join(self.config.trainer.output_dir, 'logs'))
-        self.writer = SummaryWriter(os.path.join(self.config.trainer.output_dir, 'tensorboard'))
+        if self.local_rank == 0:
+            self.writer = SummaryWriter(os.path.join(self.config.trainer.output_dir, 'tensorboard'))
+        else:
+            self.writer = None
 
         self.start_epoch = 0
         self.global_step = 0
@@ -213,6 +217,7 @@ class FlowMatchingTrainer:
 
         with torch.no_grad():
             mels = self.torch_mel_spectrogram_dvae(wavs)
+            mel_lens = torch.ceil((wav_lengths + 1) / 256).long()
             token = self.vq_vae.get_codebook_indices(mels)
             token_len = torch.ceil((wav_lengths + 1) / 1024).long()
 
@@ -220,8 +225,8 @@ class FlowMatchingTrainer:
             embedding = self.gpt.get_style_emb(cond_mels)
             embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
-            feat = self.flow_vae.encode(wavs).transpose(1, 2) # (b, d, t) -> (b, t, d)
-            feat_len = wav_lengths // self.downsample_rate
+            feat = mel_spectrogram(wavs.squeeze(1)).transpose(1, 2) # (b, d, t) -> (b, t, d)
+            feat_len = wav_lengths // 256
         
         # Forward pass: compute flow matching loss
         loss = self.model(
@@ -304,6 +309,7 @@ class FlowMatchingTrainer:
 
                 with torch.no_grad():
                     mels = self.torch_mel_spectrogram_dvae(wavs)
+                    mel_lens = torch.ceil((wav_lengths + 1) / 256).long()
                     token = self.vq_vae.get_codebook_indices(mels)
                     token_len = torch.ceil((wav_lengths + 1) / 1024).long()
 
@@ -311,8 +317,8 @@ class FlowMatchingTrainer:
                     embedding = self.gpt.get_style_emb(cond_mels)
                     embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
-                    feat = self.flow_vae.encode(wavs).transpose(1, 2) # (b, d, t) -> (b, t, d)
-                    feat_len = wav_lengths // self.downsample_rate
+                    feat = mel_spectrogram(wavs.squeeze(1)).transpose(1, 2) # (b, d, t) -> (b, t, d)
+                    feat_len = wav_lengths // 256
                 
                 # Forward pass: compute flow matching loss
                 loss = self.model(

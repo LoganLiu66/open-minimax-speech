@@ -139,17 +139,15 @@ class ConditionalCFM(BASECFM):
     """
     Reference: https://github.com/FunAudioLLM/CosyVoice/blob/main/cosyvoice/flow/flow_matching.py
     """
-    def __init__(self, in_channels, cfm_params, estimator, n_spks=1, spk_emb_dim=64):
+    def __init__(self, in_channels, cfm_params, estimator):
         super().__init__(
             n_feats=in_channels,
-            cfm_params=cfm_params,
-            n_spks=n_spks,
-            spk_emb_dim=spk_emb_dim,
+            cfm_params=cfm_params
         )
         self.t_scheduler = cfm_params.t_scheduler
         self.training_cfg_rate = cfm_params.training_cfg_rate
         self.inference_cfg_rate = cfm_params.inference_cfg_rate
-        in_channels = in_channels + (spk_emb_dim if n_spks > 0 else 0)
+        self.in_channels = in_channels
         # Just change the architecture of the estimator here
         self.estimator = ConditionalDecoder(**estimator)
         self.out_channels = self.estimator.out_channels
@@ -174,20 +172,12 @@ class ConditionalCFM(BASECFM):
                 shape: (batch_size, n_feats, mel_timesteps)
         """
 
-        z = torch.randn_like(mu).to(mu.device).to(mu.dtype) * temperature
-        cache_size = cache.shape[2]
-        # fix prompt and overlap part mu and z
-        if cache_size != 0:
-            z[:, :, :cache_size] = cache[:, :, :, 0]
-            mu[:, :, :cache_size] = cache[:, :, :, 1]
-        z_cache = torch.concat([z[:, :, :prompt_len], z[:, :, -34:]], dim=2)
-        mu_cache = torch.concat([mu[:, :, :prompt_len], mu[:, :, -34:]], dim=2)
-        cache = torch.stack([z_cache, mu_cache], dim=-1)
+        z = torch.randn_like(cond).to(cond.device).to(cond.dtype) * temperature
 
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device, dtype=mu.dtype)
         if self.t_scheduler == 'cosine':
             t_span = 1 - torch.cos(t_span * 0.5 * torch.pi)
-        return self.solve_euler(z, t_span=t_span, mu=mu, mask=mask, spks=spks, cond=cond), cache
+        return self.solve_euler(z, t_span=t_span, mu=mu, mask=mask, spks=spks, cond=cond), None
 
     def solve_euler(self, x, t_span, mu, mask, spks, cond, streaming=False):
         """
@@ -215,9 +205,9 @@ class ConditionalCFM(BASECFM):
         # NOTE when flow run in amp mode, x.dtype is float32, which cause nan in trt fp16 inference, so set dtype=spks.dtype
         x_in = torch.zeros([2, self.out_channels, x.size(2)], device=x.device, dtype=spks.dtype)
         mask_in = torch.zeros([2, 1, x.size(2)], device=x.device, dtype=spks.dtype)
-        mu_in = torch.zeros([2, self.out_channels, x.size(2)], device=x.device, dtype=spks.dtype)
+        mu_in = torch.zeros([2, self.in_channels, x.size(2)], device=x.device, dtype=spks.dtype)
         t_in = torch.zeros([2], device=x.device, dtype=spks.dtype)
-        spks_in = torch.zeros([2, self.out_channels], device=x.device, dtype=spks.dtype)
+        spks_in = torch.zeros([2, self.in_channels], device=x.device, dtype=spks.dtype)
         cond_in = torch.zeros([2, self.out_channels, x.size(2)], device=x.device, dtype=spks.dtype)
         for step in range(1, len(t_span)):
             # Classifier-Free Guidance inference introduced in VoiceBox
@@ -430,11 +420,11 @@ class MaskedDiffWithXvec(torch.nn.Module):
         # text encode
         h, h_lengths = self.encoder(token, token_len)
         h = self.encoder_proj(h)
-        mel_len1, mel_len2 = prompt_feat.shape[1], token_len2 * 2
+        mel_len1, mel_len2 = prompt_feat.shape[1], token_len2 * 4
         h, h_lengths = self.length_regulator.inference(h[:, :token_len1], h[:, token_len1:], mel_len1, mel_len2, self.input_frame_rate)
 
         # get conditions
-        conds = torch.zeros([1, mel_len1 + mel_len2, self.output_size], device=token.device).to(h.dtype)
+        conds = torch.zeros([1, mel_len1 + mel_len2, self.decoder.estimator.out_channels], device=token.device).to(h.dtype)
         conds[:, :mel_len1] = prompt_feat
         conds = conds.transpose(1, 2)
 
@@ -450,6 +440,53 @@ class MaskedDiffWithXvec(torch.nn.Module):
         )
         feat = feat[:, :, mel_len1:]
         assert feat.shape[2] == mel_len2
+        return feat.float(), flow_cache
+    
+
+    @torch.inference_mode()
+    def inference_without_prompt(
+        self,
+        token,
+        token_len,
+        embedding,
+        flow_cache
+    ):
+        """Flow Matching inference
+
+        Args:
+            token (torch.Tensor): gpt output tokens(batch_size, t)
+            token_len: sequence length of token
+            embedding (torch.Tensor): (batch_size, 1024)
+            flow_cache (torch.Tensor): (batch_size, output_size, 0, 2)
+        """
+        assert token.shape[0] == 1
+        # xvec projection
+        embedding = F.normalize(embedding, dim=1)
+        embedding = self.spk_embed_affine_layer(embedding)
+
+        # concat speech token and prompt speech token
+        mask = (~make_pad_mask(token_len)).unsqueeze(-1).to(embedding)
+        token = self.input_embedding(torch.clamp(token, min=0)) * mask
+
+        # text encode
+        h, h_lengths = self.encoder(token, token_len)
+        h = self.encoder_proj(h)
+        mel_len = token_len * 4
+        h, h_lengths = self.length_regulator(h, mel_len)
+
+        # get conditions
+        conds = torch.zeros([1, mel_len, self.decoder.estimator.out_channels], device=token.device).to(h.dtype)
+        conds = conds.transpose(1, 2)
+
+        mask = (~make_pad_mask(torch.tensor([mel_len]))).to(h)
+        feat, flow_cache = self.decoder(
+            mu=h.transpose(1, 2).contiguous(),
+            mask=mask.unsqueeze(1),
+            spks=embedding,
+            cond=conds,
+            n_timesteps=10,
+            cache=flow_cache
+        )
         return feat.float(), flow_cache
     
 

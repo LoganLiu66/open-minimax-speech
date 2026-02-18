@@ -32,6 +32,7 @@ if __name__ == "__main__":
     setup_logger("output/logs")
     config = OmegaConf.load("configs/minimaxspeech_config.yaml")
     minimaxspeech = MiniMaxSpeech(config)
-    audio = minimaxspeech.generate("data/LJ001-0001.wav", "Hello world!", lang="en")
-    audio = audio[0].cpu()
-    torchaudio.save("output/audio.wav", audio, 22050)
+    audio = minimaxspeech.generate("data/8875_293959_000037_000000.wav", "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.", lang="en")
+    output_file = "output/audio.wav"
+    torchaudio.save(output_file, audio.cpu(), 22050)
+    logging.info(f"saving audio to {output_file}")
