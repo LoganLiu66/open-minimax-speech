@@ -64,10 +64,22 @@ class FlowMatchingTrainer:
             logging.info(f"Single card training")
 
     def setup_model(self):
-        self.mel_extractor = TorchMelSpectrogram(
-            mel_norm_file=self.config.trainer.mel_norm_file,
+        self.torch_mel_spectrogram_dvae = TorchMelSpectrogram(
+            mel_norm_file=self.config.model.vq_vae.mel_norm_file,
             sampling_rate=self.config.dataset.sample_rate,
         ).to(self.device)
+
+        self.torch_mel_spectrogram_style_encoder = TorchMelSpectrogram(
+            filter_length=2048,
+            hop_length=256,
+            win_length=1024,
+            normalize=False,
+            sampling_rate=self.config.dataset.sample_rate,
+            mel_fmin=0,
+            mel_fmax=8000,
+            n_mel_channels=80,
+            mel_norm_file=self.config.model.vq_vae.mel_norm_file,
+        )
 
         """Setup ConditionalCFM model."""
         self.model = MaskedDiffWithXvec(**self.config.model.flow_matching).to(self.device)
@@ -200,11 +212,11 @@ class FlowMatchingTrainer:
         conds = batch["cond"].to(self.device)
 
         with torch.no_grad():
-            mels = self.mel_extractor(wavs)
+            mels = self.torch_mel_spectrogram_dvae(wavs)
             token = self.vq_vae.get_codebook_indices(mels)
             token_len = torch.ceil((wav_lengths + 1) / 1024).long()
 
-            cond_mels = self.mel_extractor(conds)
+            cond_mels = self.torch_mel_spectrogram_style_encoder(conds)
             embedding = self.gpt.get_style_emb(cond_mels)
             embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
@@ -291,11 +303,11 @@ class FlowMatchingTrainer:
                 conds = batch["cond"].to(self.device)
 
                 with torch.no_grad():
-                    mels = self.mel_extractor(wavs)
+                    mels = self.torch_mel_spectrogram_dvae(wavs)
                     token = self.vq_vae.get_codebook_indices(mels)
                     token_len = torch.ceil((wav_lengths + 1) / 1024).long()
 
-                    cond_mels = self.mel_extractor(conds)
+                    cond_mels = self.torch_mel_spectrogram_style_encoder(conds)
                     embedding = self.gpt.get_style_emb(cond_mels)
                     embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
