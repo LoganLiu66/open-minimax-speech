@@ -9,7 +9,7 @@ trainer:
   log_interval: 100
   val_interval: 1000
   save_interval: 5000
-  output_dir: "output/flow_vae_22050_4GPUs"
+  output_dir: "output/flow_vae_22050_4GPUs_dim80"
 
 loss:
   stft_loss:
@@ -28,7 +28,7 @@ loss:
     mel_loss: 15.0
     gen_loss: 1.0
     feat_loss: 2.0
-    kl_loss: 0.01
+    kl_loss: 0.1
 
 dataset:
   train_file_list: "data/libritts/libritts_train_bk.txt"
@@ -41,15 +41,15 @@ dataset:
 model:
   flow_vae:
     encoder_dim: 64
-    encoder_rates: [2, 4, 8, 8]
-    latent_dim: 256
+    encoder_rates: [2, 4, 4, 8]
+    latent_dim: 80
     decoder_dim: 1536
-    decoder_rates: [8, 8, 4, 2]
+    decoder_rates: [8, 4, 4, 2]
     sample_rate: 22050
 
     n_flows: 4
-    flow_dim: 256
-    flow_hidden_dim: 256
+    flow_dim: 80
+    flow_hidden_dim: 80
     flow_kernel_size: 5
     flow_dilation_rate: 1
     flow_layers: 4

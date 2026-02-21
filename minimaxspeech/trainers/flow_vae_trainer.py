@@ -7,12 +7,12 @@ This script trains the DAC_FLOW_VAE model which encodes audio with flow-based VA
 
 Usage:
     python minimaxspeech/trainers/flow_vae_trainer.py \
-        --config configs/flow_vae_config.yaml
+        --config configs/flow_vae_config_libritts.yaml
 
     # Multi-GPU with DDP
     export CUDA_VISIBLE_DEVICES='0,1,2,3,4,5,6,7'
     torchrun --nproc_per_node=8 minimaxspeech/trainers/flow_vae_trainer.py \
-        --config configs/flow_vae_config.yaml
+        --config configs/flow_vae_config_libritts.yaml
 """
 import argparse
 import logging
@@ -34,6 +34,7 @@ from minimaxspeech.modules.flow_vae.flow_vae import DAC_FLOW_VAE
 from minimaxspeech.modules.flow_vae.loss import L1Loss, MultiScaleSTFTLoss, MelSpectrogramLoss, GANLoss
 from minimaxspeech.utils.commons.logger import setup_logger
 
+logger = logging.getLogger("app")
 
 class FlowVAETrainer:
     def __init__(self, config: dict):
@@ -62,18 +63,18 @@ class FlowVAETrainer:
             dist.init_process_group(backend='nccl')
             self.local_rank = int(os.environ.get('LOCAL_RANK', 0))
             torch.cuda.set_device(self.local_rank)
-            logging.info(f"Distributed training enabled")
+            print(f"Distributed training enabled")
         else:
             self.local_rank = 0
-            logging.info(f"Single card training")
+            print(f"Single card training")
 
     def setup_model(self):
         self.flow_vae = DAC_FLOW_VAE(**self.config.model.flow_vae).to(self.device)
-        logging.info(f"DAC_FLOW_VAE model initialized and ready to train")
+        logger.info(f"DAC_FLOW_VAE model initialized and ready to train")
 
         # DAC(https://arxiv.org/abs/2306.06546) shows that discriminator is important for audio reconstruction
         self.discriminator = Discriminator(**self.config.model.discriminator).to(self.device)
-        logging.info(f"Discriminator model initialized and ready to train")
+        logger.info(f"Discriminator model initialized and ready to train")
 
     def setup_losses(self):
         self.waveform_loss = L1Loss()
@@ -85,7 +86,7 @@ class FlowVAETrainer:
     def load_checkpoint(self):
         # Load pretrained model if available
         if self.config.trainer.resume:
-            logging.info(f"Loading checkpoint from {self.config.trainer.checkpoint}")
+            logger.info(f"Loading checkpoint from {self.config.trainer.checkpoint}")
             checkpoint = torch.load(self.config.trainer.checkpoint, map_location='cpu')
             
             if self.config.trainer.official_checkpoint:
@@ -100,7 +101,7 @@ class FlowVAETrainer:
                 self.start_epoch = checkpoint['epoch'] + 1
                 self.global_step = checkpoint['global_step']
             
-            logging.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
+            logger.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
 
         # Wrap models with DDP if distributed
         if self.distributed:
@@ -227,7 +228,7 @@ class FlowVAETrainer:
 
     def train(self):
         """Training loop"""
-        logging.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
+        logger.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
         for epoch in range(self.start_epoch, self.config.trainer.epochs):
             self.current_epoch = epoch
             if self.distributed:
@@ -243,7 +244,7 @@ class FlowVAETrainer:
                 # Log training loss
                 if self.global_step % self.config.trainer.log_interval == 0 and self.local_rank == 0:
                     lr = float(self.optimizer_g.param_groups[0]["lr"])
-                    logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, "
+                    logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, "
                                  f"LR: {lr:.2e}, Train Losses: {train_losses}")
                     self.writer.add_scalar("train/lr", lr, self.global_step)
                     for k, v in train_losses.items():
@@ -253,7 +254,7 @@ class FlowVAETrainer:
                 if self.global_step % self.config.trainer.val_interval == 0:
                     val_losses = self.validate()
                     if self.local_rank == 0:
-                        logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
+                        logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
 
                         for key in val_losses:
                             self.writer.add_scalar(f'val/{key}', val_losses[key], self.global_step)
@@ -319,7 +320,7 @@ class FlowVAETrainer:
         output_file = os.path.join(self.config.trainer.output_dir, f'checkpoint_{global_step:06d}.pth')
         
         torch.save(checkpoint, output_file)
-        logging.info(f"Saved checkpoint to {output_file}")
+        logger.info(f"Saved checkpoint to {output_file}")
 
     def destroy(self):
         if self.writer is not None:

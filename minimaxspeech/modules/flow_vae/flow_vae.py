@@ -12,7 +12,6 @@ from typing import List, Optional, Union
 
 import numpy as np
 import torch
-from audiotools import AudioSignal
 from audiotools.ml import BaseModel
 from huggingface_hub import hf_hub_download
 from torch import nn
@@ -478,16 +477,16 @@ class DAC_FLOW_VAE(DAC):
 if __name__ == "__main__":
     from omegaconf import OmegaConf
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = OmegaConf.load("./configs/flow_vae_config.yaml")
+    config = OmegaConf.load("./configs/flow_vae_config_libritts.yaml")
     model = DAC_FLOW_VAE(**config.model.flow_vae).to(device)
     
-    length = 512 * 40 + 511
+    length = 256 * 40 + 256
     batch_size = 2
     audios = torch.randn(batch_size, 1, length).to(model.device)
     audio_lengths = torch.tensor([length] * batch_size).to(model.device)
 
     from torchinfo import summary
-    summary(model, input_data=(audios, audio_lengths), depth=5)
+    summary(model, input_data=(audios, audio_lengths))
 
     audio_hats, loss_kl = model(audios, audio_lengths)
     print(audios.shape, audio_hats.shape)
