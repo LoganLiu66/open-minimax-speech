@@ -51,7 +51,7 @@ class InterpolateRegulator(nn.Module):
         olens = ylens
         return out * mask, olens
 
-    def inference(self, x1, x2, mel_len1, mel_len2, input_frame_rate=50):
+    def inference(self, x1, x2, mel_len1, mel_len2):
         # in inference mode, interploate prompt token and token(head/mid/tail) seprately, so we can get a clear separation point of mel
         # NOTE 20 corresponds to token_overlap_len in cosyvoice/cli/model.py
         # x in (B, T, D)

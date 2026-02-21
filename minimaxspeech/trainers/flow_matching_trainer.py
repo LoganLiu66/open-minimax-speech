@@ -14,7 +14,6 @@ Usage:
 """
 import argparse
 import logging
-import math
 import os
 
 import torch
@@ -30,8 +29,9 @@ from minimaxspeech.modules.flow_matching.flow_matching import MaskedDiffWithXvec
 from minimaxspeech.modules.flow_vae.flow_vae import DAC_FLOW_VAE
 from minimaxspeech.modules.gpt.gpt import GPT
 from minimaxspeech.modules.vq_vae.dvae import DiscreteVAE, TorchMelSpectrogram
-from minimaxspeech.utils.audio_utils.matcha_mel import mel_spectrogram
 from minimaxspeech.utils.commons.logger import setup_logger
+
+logger = logging.getLogger("app")
 
 
 class FlowMatchingTrainer:
@@ -62,10 +62,10 @@ class FlowMatchingTrainer:
             dist.init_process_group(backend='nccl')
             self.local_rank = int(os.environ.get('LOCAL_RANK', 0))
             torch.cuda.set_device(self.local_rank)
-            logging.info(f"Distributed training enabled")
+            print(f"Distributed training enabled")
         else:
             self.local_rank = 0
-            logging.info(f"Single card training")
+            print(f"Single card training")
 
     def setup_model(self):
         self.torch_mel_spectrogram_dvae = TorchMelSpectrogram(
@@ -87,20 +87,20 @@ class FlowMatchingTrainer:
 
         """Setup ConditionalCFM model."""
         self.model = MaskedDiffWithXvec(**self.config.model.flow_matching).to(self.device)
-        logging.info(f"ConditionalCFM model initialized and ready to train")
+        logger.info(f"ConditionalCFM model initialized and ready to train")
 
         vq_vae_config = OmegaConf.load(self.config.model.vq_vae.config)
         self.vq_vae = DiscreteVAE(**vq_vae_config.model.vq_vae).to(self.device)
-        logging.info(f"VQVAE model initialized")
+        logger.info(f"VQVAE model initialized")
 
         gpt_config = OmegaConf.load(self.config.model.gpt.config)
         self.gpt = GPT(**gpt_config.model.gpt).to(self.device)
-        logging.info(f"GPT model initialized")
+        logger.info(f"GPT model initialized")
 
         flow_vae_config = OmegaConf.load(self.config.model.flow_vae.config)
         self.flow_vae = DAC_FLOW_VAE(**flow_vae_config.model.flow_vae).to(self.device)
         self.downsample_rate = self.flow_vae.downsample_rate  # store before potential DDP wrapping
-        logging.info(f"FlowVAE model initialized")
+        logger.info(f"FlowVAE model initialized")
 
     def load_checkpoint(self):
         self.vq_vae.load_state_dict(torch.load(self.config.model.vq_vae.checkpoint, map_location="cpu"))
@@ -122,7 +122,7 @@ class FlowMatchingTrainer:
         # Load pretrained model if available
         if self.config.trainer.resume:
             checkpoint_path = self.config.trainer.checkpoint
-            logging.info(f"Loading checkpoint from {checkpoint_path}")
+            logger.info(f"Loading checkpoint from {checkpoint_path}")
             checkpoint = torch.load(checkpoint_path, map_location='cpu')
             
             self.model.load_state_dict(checkpoint['flow_matching'])
@@ -130,7 +130,7 @@ class FlowMatchingTrainer:
             self.scheduler.load_state_dict(checkpoint['scheduler'])
             self.start_epoch = checkpoint['epoch'] + 1
             self.global_step = checkpoint['global_step']
-            logging.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
+            logger.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
 
         # Wrap only the trainable model with DDP if distributed
         # Frozen models (vq_vae, gpt, flow_vae) don't need DDP
@@ -225,7 +225,7 @@ class FlowMatchingTrainer:
             embedding = self.gpt.get_style_emb(cond_mels)
             embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
-            feat = mel_spectrogram(wavs.squeeze(1)).transpose(1, 2) # (b, d, t) -> (b, t, d)
+            feat = self.flow_vae.encode(wavs).transpose(1, 2) # (b, d, t) -> (b, t, d)
             feat_len = wav_lengths // 256
         
         # Forward pass: compute flow matching loss
@@ -247,7 +247,7 @@ class FlowMatchingTrainer:
 
     def train(self):
         """Training loop"""
-        logging.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
+        logger.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
         for epoch in range(self.start_epoch, self.config.trainer.epochs):
             self.current_epoch = epoch
             if self.distributed:
@@ -263,7 +263,7 @@ class FlowMatchingTrainer:
                 # Log training loss
                 if self.global_step % self.config.trainer.log_interval == 0 and self.local_rank == 0:
                     lr = float(self.optimizer.param_groups[0]["lr"])
-                    logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, "
+                    logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, "
                                  f"LR: {lr:.2e}, Train Losses: {train_losses}")
                     self.writer.add_scalar("train/lr", lr, self.global_step)
                     for k, v in train_losses.items():
@@ -273,7 +273,7 @@ class FlowMatchingTrainer:
                 if self.global_step % self.config.trainer.val_interval == 0:
                     val_losses = self.validate()
                     if self.local_rank == 0:
-                        logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
+                        logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
 
                         for key in val_losses:
                             self.writer.add_scalar(f'val/{key}', val_losses[key], self.global_step)
@@ -317,7 +317,7 @@ class FlowMatchingTrainer:
                     embedding = self.gpt.get_style_emb(cond_mels)
                     embedding = torch.mean(embedding, dim=2) # (b, d, 32) -> (b, d)
 
-                    feat = mel_spectrogram(wavs.squeeze(1)).transpose(1, 2) # (b, d, t) -> (b, t, d)
+                    feat = self.flow_vae.encode(wavs).transpose(1, 2) # (b, d, t) -> (b, t, d)
                     feat_len = wav_lengths // 256
                 
                 # Forward pass: compute flow matching loss
@@ -349,7 +349,7 @@ class FlowMatchingTrainer:
         output_file = os.path.join(self.config.trainer.output_dir, f'checkpoint_{global_step:06d}.pth')
         
         torch.save(checkpoint, output_file)
-        logging.info(f"Saved checkpoint to {output_file}")
+        logger.info(f"Saved checkpoint to {output_file}")
 
     def destroy(self):
         if self.writer is not None:

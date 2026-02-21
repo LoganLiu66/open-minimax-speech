@@ -10,7 +10,7 @@ trainer:
   log_interval: 100
   val_interval: 5000
   save_interval: 10000
-  output_dir: "output/flow_matching_4GPUs_matcha_feat"
+  output_dir: "output/flow_matching_4GPUs_flowvae_330000_feat"
 
 dataset:
   train_file_list: "data/libritts/libritts_train_bk.txt"
@@ -41,14 +41,13 @@ model:
 
   flow_vae:
     config: "configs/flow_vae_config_libritts.yaml"
-    checkpoint: "output/flow_vae_22050_4GPUs/checkpoint_235000.pth"
+    checkpoint: "output/flow_vae_22050_4GPUs_dim80/checkpoint_330000.pth"
     
   flow_matching: # https://github.com/FunAudioLLM/CosyVoice/blob/main/examples/libritts/cosyvoice/conf/cosyvoice.yaml
     input_size: 512 # vq token embedding size
     output_size: 256 # vq token embedding proj & speaker embd output size
     spk_embed_dim: 1024 # speaker embd input size
     vocab_size: 4096
-    input_frame_rate: 50 # unused
     only_mask_loss: True
     encoder:
       input_size: 512 # vq token encoder input size

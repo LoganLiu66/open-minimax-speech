@@ -177,7 +177,7 @@ class ConditionalCFM(BASECFM):
         t_span = torch.linspace(0, 1, n_timesteps + 1, device=mu.device, dtype=mu.dtype)
         if self.t_scheduler == 'cosine':
             t_span = 1 - torch.cos(t_span * 0.5 * torch.pi)
-        return self.solve_euler(z, t_span=t_span, mu=mu, mask=mask, spks=spks, cond=cond), None
+        return self.solve_euler(z, t_span=t_span, mu=mu, mask=mask, spks=spks, cond=cond)
 
     def solve_euler(self, x, t_span, mu, mask, spks, cond, streaming=False):
         """
@@ -318,15 +318,12 @@ class MaskedDiffWithXvec(torch.nn.Module):
         output_size: int = 256,
         spk_embed_dim: int = 192,
         vocab_size: int = 4096,
-        input_frame_rate: int = 50,
         only_mask_loss: bool = True,
     ):
         super().__init__()
         self.input_size = input_size
         self.output_size = output_size
         self.vocab_size = vocab_size
-        self.input_frame_rate = input_frame_rate
-        logging.info(f"input frame rate={self.input_frame_rate}")
         self.input_embedding = nn.Embedding(vocab_size, input_size)
         self.spk_embed_affine_layer = torch.nn.Linear(spk_embed_dim, output_size)
         self.encoder = ConformerEncoder(**encoder)
@@ -391,8 +388,7 @@ class MaskedDiffWithXvec(torch.nn.Module):
         prompt_token_len,
         prompt_feat,
         prompt_feat_len,
-        embedding,
-        flow_cache
+        embedding
     ):
         """Flow Matching inference
 
@@ -404,7 +400,6 @@ class MaskedDiffWithXvec(torch.nn.Module):
             prompt_feat (torch.Tensor): (batch_size, t', output_size)
             prompt_feat_len (torch.Tensor): (batch_size,)
             embedding (torch.Tensor): (batch_size, 1024)
-            flow_cache (torch.Tensor): (batch_size, output_size, 0, 2)
         """
         assert token.shape[0] == 1
         # xvec projection
@@ -421,7 +416,7 @@ class MaskedDiffWithXvec(torch.nn.Module):
         h, h_lengths = self.encoder(token, token_len)
         h = self.encoder_proj(h)
         mel_len1, mel_len2 = prompt_feat.shape[1], token_len2 * 4
-        h, h_lengths = self.length_regulator.inference(h[:, :token_len1], h[:, token_len1:], mel_len1, mel_len2, self.input_frame_rate)
+        h, h_lengths = self.length_regulator.inference(h[:, :token_len1], h[:, token_len1:], mel_len1, mel_len2)
 
         # get conditions
         conds = torch.zeros([1, mel_len1 + mel_len2, self.decoder.estimator.out_channels], device=token.device).to(h.dtype)
@@ -429,18 +424,17 @@ class MaskedDiffWithXvec(torch.nn.Module):
         conds = conds.transpose(1, 2)
 
         mask = (~make_pad_mask(torch.tensor([mel_len1 + mel_len2]))).to(h)
-        feat, flow_cache = self.decoder(
+        feat = self.decoder(
             mu=h.transpose(1, 2).contiguous(),
             mask=mask.unsqueeze(1),
             spks=embedding,
             cond=conds,
             n_timesteps=10,
-            prompt_len=mel_len1,
-            cache=flow_cache
+            prompt_len=mel_len1
         )
         feat = feat[:, :, mel_len1:]
         assert feat.shape[2] == mel_len2
-        return feat.float(), flow_cache
+        return feat.float()
     
 
     @torch.inference_mode()
@@ -448,8 +442,7 @@ class MaskedDiffWithXvec(torch.nn.Module):
         self,
         token,
         token_len,
-        embedding,
-        flow_cache
+        embedding
     ):
         """Flow Matching inference
 
@@ -457,7 +450,6 @@ class MaskedDiffWithXvec(torch.nn.Module):
             token (torch.Tensor): gpt output tokens(batch_size, t)
             token_len: sequence length of token
             embedding (torch.Tensor): (batch_size, 1024)
-            flow_cache (torch.Tensor): (batch_size, output_size, 0, 2)
         """
         assert token.shape[0] == 1
         # xvec projection
@@ -479,15 +471,14 @@ class MaskedDiffWithXvec(torch.nn.Module):
         conds = conds.transpose(1, 2)
 
         mask = (~make_pad_mask(torch.tensor([mel_len]))).to(h)
-        feat, flow_cache = self.decoder(
+        feat = self.decoder(
             mu=h.transpose(1, 2).contiguous(),
             mask=mask.unsqueeze(1),
             spks=embedding,
             cond=conds,
-            n_timesteps=10,
-            cache=flow_cache
+            n_timesteps=10
         )
-        return feat.float(), flow_cache
+        return feat.float()
     
 
 if __name__ == "__main__":
