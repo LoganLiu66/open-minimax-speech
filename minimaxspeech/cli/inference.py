@@ -1,12 +1,34 @@
-import logging
+#!/usr/bin/env python3
+# -*- encoding: utf-8 -*-
+"""
+Usage:
+    python minimaxspeech/cli/inference.py \
+        --config configs/minimaxspeech_config.yaml \
+        --prompt_audio data/LJ001-0001.wav \
+        --text "Hello, how are you?" \
+        --lang en \
+        --output_file output/audio.wav
+"""
+import argparse
 
-from omegaconf import OmegaConf
 import torch
 import torchaudio
+from omegaconf import OmegaConf
 
 from minimaxspeech.cli.model import MiniMaxSpeechModel
 from minimaxspeech.cli.frontend import MiniMaxSpeechFrontend
 from minimaxspeech.utils.commons.logger import setup_logger
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default="configs/minimaxspeech_config.yaml")
+    parser.add_argument("--prompt_audio", type=str, default="data/LJ001-0001.wav")
+    parser.add_argument("--text", type=str, default="Hello, how are you?")
+    parser.add_argument("--lang", type=str, default="en")
+    parser.add_argument("--output_file", type=str, default="output/audio.wav")
+    return parser.parse_args()
+
 
 class MiniMaxSpeech:
     def __init__(self, config: dict):
@@ -29,10 +51,11 @@ class MiniMaxSpeech:
 
 
 if __name__ == "__main__":
-    setup_logger("output/logs")
-    config = OmegaConf.load("configs/minimaxspeech_config.yaml")
+    args = get_args()
+    logger = setup_logger("output/logs")
+    logger.info("Starting MiniMaxSpeech inference")
+    config = OmegaConf.load(args.config)
     minimaxspeech = MiniMaxSpeech(config)
-    audio = minimaxspeech.generate("data/8875_293959_000037_000000.wav", "Printing, in the only sense with which we are at present concerned, differs from most, if not from all, the arts and crafts represented in the exhibition.", lang="en")
-    output_file = "output/audio.wav"
-    torchaudio.save(output_file, audio.cpu(), 22050)
-    logging.info(f"saving audio to {output_file}")
+    audio = minimaxspeech.generate(args.prompt_audio, args.text, lang=args.lang)
+    torchaudio.save(args.output_file, audio.cpu(), 22050)
+    logger.info(f"saving audio to {args.output_file}")
