@@ -40,6 +40,8 @@ from minimaxspeech.modules.gpt.gpt import GPT
 from minimaxspeech.modules.vq_vae.dvae import DiscreteVAE, TorchMelSpectrogram
 from minimaxspeech.utils.commons.logger import setup_logger
 
+logger = logging.getLogger("app")
+
 
 class GPT2Trainer:
     def __init__(self, config):
@@ -69,10 +71,10 @@ class GPT2Trainer:
             dist.init_process_group(backend="nccl")
             self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
             torch.cuda.set_device(self.local_rank)
-            logging.info("Distributed training enabled.")
+            print("Distributed training enabled.")
         else:
             self.local_rank = 0
-            logging.info("Single GPU/CPU training.")
+            print("Single GPU/CPU training.")
 
     def setup_models(self):
         self.mel_extractor = TorchMelSpectrogram(
@@ -159,7 +161,7 @@ class GPT2Trainer:
         )
 
     def load_checkpoint(self):
-        logging.info(f"Initializing VQVAE from checkpoint {self.config.model.vq_vae.checkpoint}")
+        logger.info(f"Initializing VQVAE from checkpoint {self.config.model.vq_vae.checkpoint}")
         ckpt = torch.load(self.config.model.vq_vae.checkpoint, map_location="cpu")
         if isinstance(ckpt, dict) and "model" in ckpt:
             self.vq_vae.load_state_dict(ckpt["model"], strict=True)
@@ -168,11 +170,11 @@ class GPT2Trainer:
         self.vq_vae.eval()
         for p in self.vq_vae.parameters():
             p.requires_grad = False
-        logging.info("VQVAE initialized.")
+        logger.info("VQVAE initialized.")
 
         # Load pretrained decoder if available
         if self.config.trainer.resume:
-            logging.info(f"Loading GPT from checkpoint {self.config.trainer.checkpoint}")
+            logger.info(f"Loading GPT from checkpoint {self.config.trainer.checkpoint}")
             checkpoint = torch.load(self.config.trainer.checkpoint, map_location='cpu')
             
             if 'gpt' in checkpoint: # self-host checkpoint
@@ -187,7 +189,7 @@ class GPT2Trainer:
                 self.start_epoch = 0
                 self.global_step = 0
             
-            logging.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
+            logger.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
 
         # Wrap models with DDP if distributed
         if self.distributed:
@@ -321,10 +323,10 @@ class GPT2Trainer:
         }
         output_file = os.path.join(self.config.trainer.output_dir, f'checkpoint_{global_step:06d}.pth')
         torch.save(checkpoint, output_file)
-        logging.info(f"Saved checkpoint to {output_file}")
+        logger.info(f"Saved checkpoint to {output_file}")
 
     def train(self):
-        logging.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
+        logger.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
         for epoch in range(self.start_epoch, self.config.trainer.epochs):
             self.current_epoch = epoch
             if self.distributed:
@@ -338,7 +340,7 @@ class GPT2Trainer:
                 # Log training loss
                 if self.global_step % self.config.trainer.log_interval == 0 and self.local_rank == 0:
                     lr = float(self.optimizer.param_groups[0]["lr"])
-                    logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, LR: {lr:.2e}, Train Losses: {train_losses}")
+                    logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, LR: {lr:.2e}, Train Losses: {train_losses}")
                     self.writer.add_scalar("train/lr", lr, self.global_step)
                     for k, v in train_losses.items():
                         self.writer.add_scalar(f'train/{k}', v, self.global_step)
@@ -347,7 +349,7 @@ class GPT2Trainer:
                 if self.global_step % self.config.trainer.val_interval == 0:
                     val_losses = self.validate()
                     if self.local_rank == 0:
-                        logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
+                        logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
 
                         for key in val_losses:
                             self.writer.add_scalar(f'val/{key}', val_losses[key], self.global_step)
