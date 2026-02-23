@@ -415,8 +415,6 @@ class GPT(nn.Module):
             # recompute cond idxs for mel lengths
             for idx in range(cond_idxs.size(0)):
                 if self.use_perceiver_resampler:
-                    cond_idxs[idx] = cond_idxs[idx] // self.perceiver_cond_length_compression
-                else:
                     cond_idxs[idx] = cond_idxs[idx] // self.code_stride_len
 
         # ensure that the cond_mel does not have padding
@@ -620,7 +618,7 @@ class GPT(nn.Module):
 if __name__ == "__main__":
     from omegaconf import OmegaConf
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = OmegaConf.load("./configs/gpt_config_libritts_ft.yaml")
+    config = OmegaConf.load("./configs/gpt_config_libritts.yaml")
     model = GPT(**config.model.gpt).to(device)
     
 
