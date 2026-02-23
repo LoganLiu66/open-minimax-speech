@@ -484,8 +484,8 @@ class MaskedDiffWithXvec(torch.nn.Module):
 if __name__ == "__main__":
     from omegaconf import OmegaConf
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    config = OmegaConf.load("./configs/flow_matching_config.yaml")
-    model = MaskedDiffWithXvec(**config.flow_matching).to(device)
+    config = OmegaConf.load("./configs/flow_matching_config_libritts.yaml")
+    model = MaskedDiffWithXvec(**config.model.flow_matching).to(device)
     
     batch_size = 3
     # input
@@ -495,7 +495,7 @@ if __name__ == "__main__":
     embedding = torch.randn(batch_size, 1024).to(device)
 
     # target
-    speech_feat = torch.randn(batch_size, 200, 256).to(device)
+    speech_feat = torch.randn(batch_size, 200, 80).to(device)
     speech_feat_len = speech_token_len * 2
 
     from torchinfo import summary

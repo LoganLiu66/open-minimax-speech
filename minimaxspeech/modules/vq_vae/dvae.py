@@ -435,7 +435,7 @@ if __name__ == "__main__":
     from omegaconf import OmegaConf
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = OmegaConf.load("./configs/vq_vae_config_libritts.yaml")
-    model = DiscreteVAE(**config.model).to(device)
+    model = DiscreteVAE(**config.model.vq_vae).to(device)
 
     waveforms = torch.randn(2, 1, 1024 * 65).to(device)
     torch_mel_spectrogram_vq_vae = TorchMelSpectrogram(

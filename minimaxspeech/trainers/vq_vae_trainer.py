@@ -30,6 +30,8 @@ from minimaxspeech.datasets.vae_dataset import VAEDataset
 from minimaxspeech.modules.vq_vae.dvae import DiscreteVAE, TorchMelSpectrogram
 from minimaxspeech.utils.commons.logger import setup_logger
 
+logger = logging.getLogger("app")
+
 
 class VQVAETrainer:
     def __init__(self, config: dict):
@@ -59,10 +61,10 @@ class VQVAETrainer:
             dist.init_process_group(backend='nccl')
             self.local_rank = int(os.environ.get('LOCAL_RANK', 0))
             torch.cuda.set_device(self.local_rank)
-            logging.info(f"Distributed training")
+            logger.info(f"Distributed training")
         else:
             self.local_rank = 0
-            logging.info(f"Single card training")
+            logger.info(f"Single card training")
 
     def setup_model(self):
         self.torch_mel_spectrogram_vq_vae = TorchMelSpectrogram(
@@ -70,15 +72,15 @@ class VQVAETrainer:
             sampling_rate=self.config.dataset.sample_rate
         ).to(self.device)
         self.model = DiscreteVAE(**self.config.model.vq_vae).to(self.device)
-        logging.info(f"Model initialized and ready to train")
+        logger.info(f"Model initialized and ready to train")
 
     def load_checkpoint(self):
         # Load pretrained decoder if available
         if self.config.trainer.resume:
-            logging.info(f"Loading pretrained decoder from {self.config.trainer.checkpoint}")
+            logger.info(f"Loading pretrained decoder from {self.config.trainer.checkpoint}")
             checkpoint = torch.load(self.config.trainer.checkpoint, map_location='cpu')
             
-            if 'vq_vae' in checkpoint: # self-host checkpoint
+            if 'vq_vae' in checkpoint: # inhouse checkpoint
                 self.model.load_state_dict(checkpoint['vq_vae'])
                 self.start_epoch = checkpoint['epoch'] + 1
                 self.global_step = checkpoint['global_step']
@@ -91,7 +93,7 @@ class VQVAETrainer:
                 self.optimizer.load_state_dict(checkpoint['optimizer'])
             if 'scheduler' in checkpoint:
                 self.scheduler.load_state_dict(checkpoint['scheduler'])
-            logging.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
+            logger.info(f"Resumed: start_epoch={self.start_epoch}, global_step={self.global_step}")
 
         # Wrap models with DDP if distributed
         if self.distributed:
@@ -177,7 +179,7 @@ class VQVAETrainer:
 
     def train(self):
         """Training loop"""
-        logging.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
+        logger.info(f"Start training: epoch={self.start_epoch}, global_step={self.global_step}")
         for epoch in range(self.start_epoch, self.config.trainer.epochs):
             self.current_epoch = epoch
             if self.distributed:
@@ -191,7 +193,7 @@ class VQVAETrainer:
                 # Log training loss
                 if self.global_step % self.config.trainer.log_interval == 0 and self.local_rank == 0:
                     lr = float(self.optimizer.param_groups[0]["lr"])
-                    logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, "
+                    logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, "
                                  f"LR: {lr:.2e}, Train Losses: {train_losses}")
                     self.writer.add_scalar("train/lr", lr, self.global_step)
                     for k, v in train_losses.items():
@@ -201,7 +203,7 @@ class VQVAETrainer:
                 if self.global_step % self.config.trainer.val_interval == 0:
                     val_losses = self.validate()
                     if self.local_rank == 0:
-                        logging.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
+                        logger.info(f"Epoch: {epoch}, Global Step: {self.global_step}, Valid Losses: {val_losses}")
 
                         for key in val_losses:
                             self.writer.add_scalar(f'val/{key}', val_losses[key], self.global_step)
@@ -258,7 +260,7 @@ class VQVAETrainer:
         }
         output_file = os.path.join(self.config.trainer.output_dir, f'checkpoint_{global_step:06d}.pth')
         torch.save(checkpoint, output_file)
-        logging.info(f"Saved checkpoint to {output_file}")
+        logger.info(f"Saved checkpoint to {output_file}")
 
     def destroy(self):
         if self.writer is not None:
