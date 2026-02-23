@@ -8,13 +8,13 @@ trainer:
   log_interval: 100
   val_interval: 1000
   save_interval: 10000
-  output_dir: "output/dvae"
+  output_dir: "output/dvae_train_12s"
 
 dataset:
-  train_file_list: "data/libritts/libritts_train_bk.txt"
-  valid_file_list: "data/libritts/libritts_valid_bk.txt"
+  train_file_list: "data/tts/openslr/libritts/libritts_train.jsonl"
+  valid_file_list: "data/tts/openslr/libritts/libritts_valid.jsonl"
   sample_rate: 22050
-  max_duration: 2.0
+  max_duration: 12.0
   num_workers: 32
   batch_size: 256
 

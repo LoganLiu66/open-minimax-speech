@@ -31,8 +31,8 @@ loss:
     kl_loss: 0.1
 
 dataset:
-  train_file_list: "data/libritts/libritts_train_bk.txt"
-  valid_file_list: "data/libritts/libritts_valid_bk.txt"
+  train_file_list: "data/tts/openslr/libritts/libritts_train.jsonl"
+  valid_file_list: "data/tts/openslr/libritts/libritts_valid.jsonl"
   sample_rate: 22050
   max_duration: 0.38
   num_workers: 16

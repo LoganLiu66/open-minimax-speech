@@ -26,7 +26,7 @@ class VAEDataset(Dataset):
                 meta_data = json.loads(line.strip())
                 metadata_list.append({
                     'audio_file': meta_data['audio_file'],
-                    'sid': meta_data['sid'],
+                    'spk': meta_data['spk'],
                     'lang': meta_data['lang'],
                     'text': meta_data['text']
                 })

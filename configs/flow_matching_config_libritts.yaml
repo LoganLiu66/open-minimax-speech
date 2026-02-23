@@ -13,8 +13,8 @@ trainer:
   output_dir: "output/flow_matching_4GPUs_flowvae_330000_feat"
 
 dataset:
-  train_file_list: "data/libritts/libritts_train_bk.txt"
-  valid_file_list: "data/libritts/libritts_valid_bk.txt"
+  train_file_list: "data/tts/openslr/libritts/libritts_train.jsonl"
+  valid_file_list: "data/tts/openslr/libritts/libritts_valid.jsonl"
   tokenizer_file: "checkpoints/xtts2/vocab.json"
   sample_rate: 22050
   num_workers: 16

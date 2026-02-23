@@ -1,7 +1,7 @@
 trainer:
   # resume
-  resume: true
-  checkpoint: "checkpoints/xtts2/gpt.pth"
+  resume: false
+  checkpoint: null
 
   # optimization
   learning_rate: 1e-4
